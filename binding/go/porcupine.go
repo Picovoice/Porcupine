@@ -247,16 +247,35 @@ func (porcupine *Porcupine) Process(pcm []int16) (keywordIndex int, err error) {
 }
 
 func getOS() string {
-	switch os := runtime.GOOS; os {
+	switch o := runtime.GOOS; o {
 	case "darwin":
 		return "mac"
 	case "linux":
+		// Detect if we are running on a Raspberry Pi
+		// For details, see: https://raspberrypi.stackexchange.com/a/118473/46921
+		rel, err := os.ReadFile("/sys/firmware/devicetree/base/model")
+		if err != nil {
+			return "linux"
+		}
+		if strings.Contains(strings.ToLower(string(rel)), "raspberry pi") {
+			return "raspberry-pi"
+		}
 		return "linux"
 	case "windows":
 		return "windows"
 	default:
-		log.Fatalf("%s is not a supported OS", os)
+		log.Fatalf("%s is not a supported OS", o)
 		return ""
+	}
+}
+
+func getArch() string {
+	switch runtime.GOARCH {
+	case "arm":
+		return "arm11"
+	//TODO Handle more arches
+	default:
+		return "x86_64"
 	}
 }
 
@@ -283,15 +302,16 @@ func extractKeywordFiles() map[string]string {
 
 func extractLib() string {
 	var libPath string
-	switch os := runtime.GOOS; os {
+	switch o := runtime.GOOS; o {
 	case "darwin":
 		libPath = fmt.Sprintf("embedded/lib/%s/x86_64/libpv_porcupine.dylib", osName)
 	case "linux":
-		libPath = fmt.Sprintf("embedded/lib/%s/x86_64/libpv_porcupine.so", osName)
+		osArch := getArch()
+		libPath = fmt.Sprintf("embedded/lib/%s/%s/libpv_porcupine.so", osName, osArch)
 	case "windows":
 		libPath = fmt.Sprintf("embedded/lib/%s/amd64/libpv_porcupine.dll", osName)
 	default:
-		log.Fatalf("%s is not a supported OS", os)
+		log.Fatalf("%s is not a supported OS", o)
 	}
 
 	return extractFile(libPath, extractionDir)
